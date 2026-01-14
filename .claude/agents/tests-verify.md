@@ -59,8 +59,11 @@ model_name: main
 
 | Claim | Fix Report | Actual | Match |
 |-------|------------|--------|-------|
+| Initial Lines | 2.8% | 2.8% | ✅ |
+| Initial Functions | 5.1% | 5.1% | ✅ |
 | Final Lines | 2.8% | 2.8% | ✅ |
 | Final Functions | 5.1% | 5.1% | ✅ |
+| Regression Gate (Final >= Initial) | PASS | PASS | ✅ |
 
 ---
 
@@ -85,6 +88,7 @@ Pipeline Status: ✅ PASS
 - Fix says "SKIPPED (needs redesign)" → ✅ Compliant (valid reason!)
 - Fix says "FIXED" but code not changed → ❌ Non-compliant
 - Review item not in fix report at all → 🔍 Missing → ❌ Non-compliant
+- Final coverage < Initial coverage (from fix report) → ❌ Non-compliant
 
 ---
 
@@ -227,6 +231,10 @@ Compare actual vs fix.md "Final Coverage" claim:
 - Match → ✅ Compliant
 - Mismatch → ❌ Non-compliant
 
+Also enforce regression gate using fix.md:
+- Final >= Initial (Lines and Functions) → ✅ Compliant
+- Final < Initial (either Lines or Functions) → ❌ Non-compliant
+
 **Record in table format** (see OUTPUT FORMAT above).
 
 ### PHASE 4: Generate Report
@@ -272,4 +280,3 @@ REVIEW → FIX → VERIFY → 100%? → Done
 
 - Compliance = 100% → ✅ PASS → Next file
 - Compliance < 100% → RE-FIX once → RE-VERIFY once → Next file
-

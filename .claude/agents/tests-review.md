@@ -26,13 +26,25 @@ model_name: main
 ## Redundancy Cleanup (from check_redundant_tests.sh)
 
 - **Original tests:** N
-- **Deleted (redundant):** K
-- **Remaining tests:** M
+- **Identified (redundant):** K
+- **Remaining tests (useful):** M
 
-### Deleted Test Cases
+### Redundant Test Cases (to be deleted by `tests-fix`)
 | Test Case | Reason |
 |-----------|--------|
 | `test_case_name` | No incremental coverage contribution |
+
+---
+## Quality Screening (AI-generated test issues)
+
+| Test Case | Issue | Recommendation |
+|-----------|-------|----------------|
+| `test_case_name` | `ASSERT_TRUE(true)` / no assertions / empty body / `GTEST_SKIP()` / placeholder | Fix or delete in `tests-fix` |
+
+**If no issues are found**: you MUST still record it explicitly by adding ONE row:
+| `-` | No issues found | `-` |
+
+**Note**: This section is **diagnostic only**. Do NOT apply code changes here; `tests-fix` is responsible for modifications.
 
 ---
 ## Detailed Review
@@ -69,6 +81,16 @@ model_name: main
 ### Alignment: YES / NO
 
 <1 sentence explaining match/mismatch>
+
+### Quality Screening
+
+List quality issues found in this specific test case:
+- `ASSERT_TRUE(true)` placeholder assertion
+- Missing assertions (no ASSERT/EXPECT)
+- Empty test body
+- `GTEST_SKIP()` / `SUCCEED()` / `FAIL()` placeholders
+
+**If no issues are found**: write exactly `None`.
 
 ### Recommendations
 <ONLY if Alignment = NO; otherwise OMIT this section>
@@ -146,8 +168,21 @@ model_name: main
 │  - Run: ./check_redundant_tests.sh <MODULE> <TEST_FILE_PATH>        │
 │  - Read: /tmp/<BASENAME>_redundant_check.md                         │
 │  - Parse redundant tests list → REDUNDANT_TESTS                     │
-│  - DELETE redundant test cases from source file (*.cc)              │
-│  - Rebuild module after deletion                                    │
+│  - Record redundant tests list in review report (diagnostic only)    │
+│  - Do NOT modify source file here (deletion happens in `tests-fix`)  │
+└─────────────────────────────────────────────────────────────────────┘
+                                   │
+                                   ▼
+┌─────────────────────────────────────────────────────────────────────┐
+│  PHASE 0.75: QUALITY SCREENING (DIAGNOSTIC ONLY)                     │
+│  - Scan remaining tests for common AI-generated issues:              │
+│    - Invalid assertions (ASSERT_TRUE(true), etc.)                    │
+│    - Placeholders (SUCCEED(), FAIL(), GTEST_SKIP())                  │
+│    - Empty/missing assertions                                        │
+│    - Empty test bodies                                               │
+│  - Record findings in review report "Quality Screening" section      │
+│    - If none found: record "No issues found" explicitly              │
+│  - Do NOT modify test source here (fix agent will handle changes)    │
 └─────────────────────────────────────────────────────────────────────┘
                                    │
                                    ▼
@@ -199,8 +234,9 @@ model_name: main
 
 **CRITICAL RULES**:
 1. You MUST run `check_redundant_tests.sh` FIRST for each test file.
-2. You MUST skip redundant tests identified by the script.
+2. You MUST skip redundant tests identified by the script (do not review them further).
 3. You MUST process ALL useful (non-redundant) test cases.
+4. You MUST record AI-generated test quality issues in the "Quality Screening" section (diagnostic; fixes happen in `tests-fix`).
 
 ## Key Concepts
 
@@ -345,30 +381,12 @@ cat /tmp/<BASENAME>_redundant_check.md
 - ✅ EnhancedAotRuntimeTest.test_case_3
 ```
 
-**Step 0.5.4: DELETE redundant test cases using delete_test_cases.py**
+**Step 0.5.4: DO NOT delete redundant test cases in review**
 
-```bash
-# Use the deletion script to remove all redundant tests at once
-python3 delete_test_cases.py <TEST_FILE_PATH> /tmp/<BASENAME>_redundant_check.md
+Record the redundant list into `<TEST_FILE>_review.md` only.
+The actual deletion is performed by `tests-fix` (single-writer rule: only fix modifies test sources).
 
-# Example:
-python3 delete_test_cases.py smart-tests/aot-1/enhanced_aot_runtime_test.cc \
-    /tmp/enhanced_aot_runtime_test_redundant_check.md
-
-# Script output:
-# 准备删除 6 个测试用例
-# ✅ 成功删除 6 个测试用例:
-#   - EnhancedAotRuntimeTest.test_case_2
-#   - EnhancedAotRuntimeTest.test_case_5
-#   ...
-```
-
-**Step 0.5.5: Rebuild module after cleanup**
-
-```bash
-# Rebuild to verify all changes don't break compilation
-cmake --build build/smart-tests/<MODULE_NAME> 2>&1 | tail -10
-```
+**Step 0.5.5**: (N/A in review) Rebuild is performed by `tests-fix` after applying deletions/fixes.
 
 ### PHASE 1: Setup
 
@@ -392,8 +410,8 @@ grep -E "^TEST_F\(|^TEST\(|^TEST_P\(" <test_file.cc> | \
 ## Redundancy Cleanup (from check_redundant_tests.sh)
 
 - **Original tests:** N
-- **Deleted (redundant):** K
-- **Remaining tests:** M
+- **Identified (redundant):** K
+- **Remaining tests (useful):** M
 
 ### Deleted Test Cases
 | Test Case | Reason |
@@ -620,9 +638,7 @@ After processing ALL test cases, append the **Path Coverage Summary** section fo
 ### MUST DO
 - **MANDATORY: Run `./check_redundant_tests.sh` FIRST for each test file**
 - **MANDATORY: Read and parse `/tmp/<BASENAME>_redundant_check.md` to get redundant test list**
-- **MANDATORY: DELETE redundant test cases using `python3 delete_test_cases.py`**
-- **MANDATORY: Review and delete orphaned content (comments, macros, helper functions)**
-- **MANDATORY: Rebuild module after cleanup**
+- **MANDATORY: Record redundant test list in the review report (diagnostic only)**
 - **MANDATORY: Write cleanup report section to summary file BEFORE detailed reviews**
 - Process ALL remaining test cases sequentially
 - **MANDATORY: Output progress "📊 Processing Test Case [N/M]" at START of each test case**
@@ -633,7 +649,7 @@ After processing ALL test cases, append the **Path Coverage Summary** section fo
 ### MUST NOT DO
 - Trust line number references in comments
 - **NEVER skip running check_redundant_tests.sh**
-- **NEVER keep redundant test cases in source file - DELETE them**
+- Modify test source files in review (all modifications must happen in `tests-fix`)
 - **NEVER batch-verify or summarize multiple test cases together**
 - **NEVER jump to Path Coverage Summary before processing ALL remaining test cases**
 - Read entire test files into context
@@ -646,8 +662,7 @@ After processing ALL test cases, append the **Path Coverage Summary** section fo
 cd ~/zhenwei/wasm-micro-runtime/tests/unit
 
 # Key commands (always use | tail -N to limit output)
-./check_redundant_tests.sh <MODULE> <TEST_FILE_PATH>        # Redundancy detection
-python3 delete_test_cases.py <TEST_FILE> /tmp/<BASE>_redundant_check.md  # Delete redundant
+./check_redundant_tests.sh <MODULE> <TEST_FILE_PATH>        # Redundancy detection (diagnostic)
 cmake --build build/smart-tests/<MODULE> 2>&1 | tail -10    # Rebuild
 ctest --test-dir build/smart-tests/<MODULE> -R "^<TEST>$"   # Run single test
 lcov --capture --directory build/smart-tests/<MODULE> -o coverage.info  # Capture coverage

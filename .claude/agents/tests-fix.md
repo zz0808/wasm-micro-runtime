@@ -36,7 +36,7 @@ model_name: main
 
 ---
 
-## Phase 0.5: Quality Check
+## Phase 0.5: Quality Fix
 
 | Test Case | Issue | Action | Result |
 |-----------|-------|--------|--------|
@@ -103,12 +103,16 @@ model_name: main
 1. Test case reviews with `Alignment: YES/NO` status
 2. `Recommendations` section for tests with `Alignment: NO`
 3. `Enhancement Recommendations` with suggested new test cases
+4. `Redundancy Cleanup` section (redundant tests already identified)
+5. `Quality Screening` section (diagnostic issues per test case)
 
-**OPTIONAL INPUT (for RE-FIX mode)**: 
+**OPTIONAL INPUT (for RE-FIX mode)**:
 - Previous `*_fix.md` file (context of what was already attempted)
 - `*_verify.md` file (identifies what's still missing)
+- Invocation hint: pipeline may pass a `--refix` flag (treat as RE-FIX mode)
 
 When running as RE-FIX iteration, focus ONLY on non-compliant items from verify report.
+If `*_verify.md` is not provided, locate it automatically in the same directory as the test file (basename + `_verify.md`).
 
 ## Execution Overview
 
@@ -119,19 +123,31 @@ When running as RE-FIX iteration, focus ONLY on non-compliant items from verify 
 │  - cd ~/zhenwei/wasm-micro-runtime/tests/unit                       │
 │  - Run: python3 get_current_coverage.py <TEST_FILE_PATH>            │
 │  - Record INITIAL_COVERAGE in output document                       │
-│  - cmake --build build/smart-tests/<MODULE> 2>&1 | tail -15         │
+│  - cmake --build build/smart-tests/<MODULE_NAME> 2>&1 | tail -15    │
 └─────────────────────────────────────────────────────────────────────┘
                                    │
                                    ▼
 ┌─────────────────────────────────────────────────────────────────────┐
-│  PHASE 0.5: QUALITY CHECK (AI-generated test issues)                │
-│  - For each test case in the file:                                  │
-│    - Check for invalid assertions (ASSERT_TRUE(true), SUCCEED())    │
-│    - Check for GTEST_SKIP() calls                                   │
-│    - Check for empty/missing assertions                             │
-│    - Check for useful comments                                      │
-│    - FIX issues automatically where possible                        │
-│  - Record fixes in output document                                  │
+│  PHASE 0.25: REDUNDANCY CLEANUP (enforced by coverage gate)          │
+│  - Run redundancy checker again for determinism:                     │
+│    ./check_redundant_tests.sh <MODULE_NAME> <TEST_FILE_PATH>         │
+│  - Delete redundant tests in bulk:                                   │
+│    python3 delete_test_cases.py <TEST_FILE_PATH> /tmp/<BASE>_...md   │
+│  - Rebuild module                                                    │
+│  - Verify coverage NOT dropped vs INITIAL (if dropped → REVERT)      │
+│  - Record deletions as part of Phase 0.5 table (Action=Deleted)      │
+└─────────────────────────────────────────────────────────────────────┘
+                                   │
+                                   ▼
+┌─────────────────────────────────────────────────────────────────────┐
+│  PHASE 0.5: QUALITY FIX (from review + safety scan)                 │
+│  - Primary input: review report "Quality Screening" findings        │
+│  - Apply fixes in source file (rename/delete/replace assertions)    │
+│  - Safety scan (in case review missed items):                       │
+│    - Invalid assertions (ASSERT_TRUE(true), SUCCEED())              │
+│    - Placeholders (FAIL(), GTEST_SKIP())                            │
+│    - Empty test bodies / missing assertions                         │
+│  - Record all fixes in output document                              │
 └─────────────────────────────────────────────────────────────────────┘
                                    │
                                    ▼
@@ -159,6 +175,8 @@ When running as RE-FIX iteration, focus ONLY on non-compliant items from verify 
 │  PHASE 3: FINAL REPORT                                              │
 │  - Run: python3 get_current_coverage.py <TEST_FILE_PATH>            │
 │  - Calculate coverage change and generate summary                   │
+│  - HARD GATE: Final coverage MUST be >= Initial coverage            │
+│    (otherwise REVERT last accepted changes and mark as FAILED)      │
 └─────────────────────────────────────────────────────────────────────┘
 ```
 
@@ -209,9 +227,33 @@ cmake --build build/smart-tests/<MODULE_NAME> 2>&1 | tail -15
 
 **Create output file** following the EXACT format in "CRITICAL: OUTPUT FORMAT" above.
 
-### PHASE 0.5: Quality Check
+---
 
-**Goal**: Detect and fix common AI-generated test issues.
+### PHASE 0.25: Redundancy Cleanup (enforced by coverage gate)
+
+**Goal**: Remove truly redundant tests (0 incremental coverage) while guaranteeing overall coverage does not regress.
+
+```bash
+# 0.25.1 Run redundancy checker (deterministic tool output)
+./check_redundant_tests.sh <MODULE_NAME> <TEST_FILE_PATH>
+
+# 0.25.2 Delete redundant tests in bulk (if any)
+python3 delete_test_cases.py <TEST_FILE_PATH> /tmp/<BASENAME>_redundant_check.md
+
+# 0.25.3 Rebuild after deletion
+cmake --build build/smart-tests/<MODULE_NAME> 2>&1 | tail -15
+
+# 0.25.4 Coverage gate: MUST NOT drop vs INITIAL
+python3 get_current_coverage.py <TEST_FILE_PATH>
+```
+
+**Accept/Reject**:
+- If coverage **drops** vs INITIAL → **REVERT** the file to pre-cleanup state and record as ❌ FAILED (coverage regression)
+- If coverage **maintained or improved** → keep changes and record deletions in Phase 0.5 table (Action=Deleted)
+
+### PHASE 0.5: Quality Fix (from review + safety scan)
+
+**Goal**: Apply quality fixes based on review findings, plus a quick safety scan to catch missed issues.
 
 | Issue Type | Pattern | Action |
 |------------|---------|--------|
@@ -227,7 +269,7 @@ cmake --build build/smart-tests/<MODULE_NAME> 2>&1 | tail -15
 
 ### RE-FIX Mode (Closed-Loop Iteration)
 
-When invoked with previous `*_fix.md` and `*_verify.md`:
+When invoked for RE-FIX (typically because Compliance < 100% in `*_verify.md`):
 
 1. Read verify report → find items marked ❌ Non-compliant or 🔍 Missing
 2. Read previous fix report → understand what was already attempted
@@ -239,7 +281,7 @@ When invoked with previous `*_fix.md` and `*_verify.md`:
 ---
 ## RE-FIX Iteration N
 
-**Triggered by**: Compliance < 90%
+**Triggered by**: Compliance < 100%
 **Non-compliant items**: N
 
 | Item | Verify Issue | Action | Result |
@@ -253,11 +295,11 @@ For each test with `Alignment: NO` in review:
 
 1. **Read** the recommendation from review
 2. **Apply** fix (rename / modify assertion / add setup)
-3. **Rebuild**: `cmake --build build/smart-tests/<MODULE> 2>&1 | tail -10`
+3. **Rebuild**: `cmake --build build/smart-tests/<MODULE_NAME> 2>&1 | tail -10`
 4. **Verify**: `python3 is_test_case_useful.py <TEST_FILE> <TEST_CASE>`
 5. **Accept/Reject**:
    - Coverage maintained/improved → ✅ FIXED
-   - Coverage dropped → ❌ FAILED (revert changes)
+   - Coverage dropped (per-test OR overall gate) → ❌ FAILED (revert changes)
    - Needs manual redesign → ⏭️ SKIPPED
 
 **Record each fix in output document's Phase 1 section.**
@@ -268,10 +310,10 @@ For each suggested test in "Enhancement Recommendations":
 
 1. **Generate** test code following existing patterns
 2. **Append** to test file
-3. **Rebuild**: `cmake --build build/smart-tests/<MODULE> 2>&1 | tail -10`
+3. **Rebuild**: `cmake --build build/smart-tests/<MODULE_NAME> 2>&1 | tail -10`
 4. **Verify**: `python3 is_test_case_useful.py <TEST_FILE> <NEW_TEST_CASE>`
 5. **Accept/Reject**:
-   - Coverage improved (new lines > 0) → ✅ ADDED
+   - Coverage improved (new lines > 0) AND overall gate not dropped → ✅ ADDED
    - No coverage contribution → ⏭️ SKIPPED (delete test case)
 
 **Record each new test in output document's Phase 2 table.**
@@ -284,6 +326,10 @@ python3 get_current_coverage.py <TEST_FILE_PATH>
 
 **Update output document**: Fill in the Coverage Summary table and Summary table following the format in "CRITICAL: OUTPUT FORMAT" above.
 
+**HARD GATE (MANDATORY)**:
+- Final coverage MUST be >= Initial coverage (Lines and Functions)
+- If Final < Initial: revert the last accepted change set(s) until the gate passes, otherwise mark the offending items as ❌ FAILED
+
 ## Constraints
 
 ### ✅ MUST DO
@@ -294,6 +340,7 @@ python3 get_current_coverage.py <TEST_FILE_PATH>
 5. Revert/remove changes that don't meet criteria
 6. Record final coverage AFTER modifications
 7. Use CONCISE output format (tables, not paragraphs)
+8. Enforce overall coverage gate: Final MUST be >= Initial
 
 ### ❌ MUST NOT DO
 1. Skip coverage verification
@@ -315,7 +362,7 @@ python3 get_current_coverage.py <TEST_FILE>
 python3 is_test_case_useful.py <TEST_FILE> <TEST_CASE_NAME>
 
 # Build module
-cmake --build build/smart-tests/<MODULE> 2>&1 | tail -15
+cmake --build build/smart-tests/<MODULE_NAME> 2>&1 | tail -15
 
 # Extract test case
 awk '/TEST_F\(Suite, Test\)/,/^}$/' file.cc
