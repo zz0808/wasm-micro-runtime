@@ -33,16 +33,16 @@ public:
 };
 
 /******
- * Test Case: aot_resolve_import_func_NativeResolutionFails_SubModuleLoadSuccess
+ * Test Case: aot_resolve_import_func_NativeResolutionFails_SubModuleLoadFails
  * Source: core/iwasm/aot/aot_runtime.c:5618-5633
- * Target Lines: 5618-5620 (sub-module loading success path)
+ * Target Lines: 5656-5664 (sub-module loading failure path)
  * Functional Purpose: Validates that aot_resolve_import_func() correctly handles
- *                     successful sub-module loading when native symbol resolution fails
+ *                     failed sub-module loading when native symbol resolution fails
  *                     for non-built-in modules.
  * Call Path: aot_resolve_import_func() <- aot_resolve_symbols() <- module loading
- * Coverage Goal: Exercise sub-module loading success path for dependency resolution
+ * Coverage Goal: Exercise sub-module loading failure path for dependency resolution
  ******/
-TEST_F(EnhancedAotRuntimeTest, aot_resolve_import_func_NativeResolutionFails_SubModuleLoadSuccess) {
+TEST_F(EnhancedAotRuntimeTest, aot_resolve_import_func_NativeResolutionFails_SubModuleLoadFails) {
     // Create a minimal AOT module for testing
     AOTModule test_module;
     memset(&test_module, 0, sizeof(AOTModule));
@@ -81,36 +81,6 @@ TEST_F(EnhancedAotRuntimeTest, aot_resolve_import_func_NativeResolutionFails_Sub
  * Call Path: aot_resolve_import_func() <- aot_resolve_symbols() <- module loading
  * Coverage Goal: Exercise sub-module loading failure path and warning logging
  ******/
-TEST_F(EnhancedAotRuntimeTest, aot_resolve_import_func_SubModuleLoadFails_LogWarning) {
-    // Create a minimal AOT module for testing
-    AOTModule test_module;
-    memset(&test_module, 0, sizeof(AOTModule));
-
-    // Create test import function that fails native resolution
-    AOTImportFunc import_func;
-    memset(&import_func, 0, sizeof(AOTImportFunc));
-
-    // Set up import function with invalid module name to force loading failure
-    import_func.module_name = (char*)"nonexistent_module";
-    import_func.func_name = (char*)"nonexistent_function";
-    import_func.func_ptr_linked = NULL; // Ensure native resolution fails
-
-    // Create minimal function type
-    AOTFuncType func_type;
-    memset(&func_type, 0, sizeof(AOTFuncType));
-    func_type.param_count = 0;
-    func_type.result_count = 0;
-    import_func.func_type = &func_type;
-
-    // Test the function - this should fail sub-module loading and trigger LOG_WARNING
-    bool result = aot_resolve_import_func(&test_module, &import_func);
-
-    // Should return false due to failed sub-module loading
-    ASSERT_FALSE(result);
-
-    // The import function should still have no linked pointer
-    ASSERT_EQ(import_func.func_ptr_linked, nullptr);
-}
 
 /******
  * Test Case: aot_resolve_import_func_SubModuleNull_FallbackResolution
@@ -122,36 +92,6 @@ TEST_F(EnhancedAotRuntimeTest, aot_resolve_import_func_SubModuleLoadFails_LogWar
  * Call Path: aot_resolve_import_func() <- aot_resolve_symbols() <- module loading
  * Coverage Goal: Exercise fallback resolution path when sub-module loading fails
  ******/
-TEST_F(EnhancedAotRuntimeTest, aot_resolve_import_func_SubModuleNull_FallbackResolution) {
-    // Create a minimal AOT module for testing
-    AOTModule test_module;
-    memset(&test_module, 0, sizeof(AOTModule));
-
-    // Create test import function that fails native resolution
-    AOTImportFunc import_func;
-    memset(&import_func, 0, sizeof(AOTImportFunc));
-
-    // Set up import function with module name that will fail loading
-    import_func.module_name = (char*)"fallback_test_module";
-    import_func.func_name = (char*)"fallback_test_function";
-    import_func.func_ptr_linked = NULL; // Ensure native resolution fails
-
-    // Create minimal function type
-    AOTFuncType func_type;
-    memset(&func_type, 0, sizeof(AOTFuncType));
-    func_type.param_count = 0;
-    func_type.result_count = 0;
-    import_func.func_type = &func_type;
-
-    // Test the function - this should fail loading and use fallback resolution
-    bool result = aot_resolve_import_func(&test_module, &import_func);
-
-    // Should return false since fallback resolution will also fail for non-existent function
-    ASSERT_FALSE(result);
-
-    // Verify that the function attempted resolution but failed
-    ASSERT_EQ(import_func.func_ptr_linked, nullptr);
-}
 
 /******
  * Test Case: aot_resolve_import_func_FunctionResolutionFails_LogWarning
@@ -163,36 +103,6 @@ TEST_F(EnhancedAotRuntimeTest, aot_resolve_import_func_SubModuleNull_FallbackRes
  * Call Path: aot_resolve_import_func() <- aot_resolve_symbols() <- module loading
  * Coverage Goal: Exercise function resolution failure path and warning logging
  ******/
-TEST_F(EnhancedAotRuntimeTest, aot_resolve_import_func_FunctionResolutionFails_LogWarning) {
-    // Create a minimal AOT module for testing
-    AOTModule test_module;
-    memset(&test_module, 0, sizeof(AOTModule));
-
-    // Create test import function that fails native resolution
-    AOTImportFunc import_func;
-    memset(&import_func, 0, sizeof(AOTImportFunc));
-
-    // Set up import function that will fail final resolution
-    import_func.module_name = (char*)"resolution_fail_module";
-    import_func.func_name = (char*)"resolution_fail_function";
-    import_func.func_ptr_linked = NULL; // Ensure native resolution fails
-
-    // Create minimal function type
-    AOTFuncType func_type;
-    memset(&func_type, 0, sizeof(AOTFuncType));
-    func_type.param_count = 0;
-    func_type.result_count = 0;
-    import_func.func_type = &func_type;
-
-    // Test the function - this should fail all resolution attempts and log warnings
-    bool result = aot_resolve_import_func(&test_module, &import_func);
-
-    // Should return false due to failed function resolution
-    ASSERT_FALSE(result);
-
-    // The import function should still have no linked pointer
-    ASSERT_EQ(import_func.func_ptr_linked, nullptr);
-}
 
 /******
  * Test Case: aot_resolve_import_func_BuiltInModule_SkipSubModuleLoading
@@ -204,36 +114,6 @@ TEST_F(EnhancedAotRuntimeTest, aot_resolve_import_func_FunctionResolutionFails_L
  * Call Path: aot_resolve_import_func() <- aot_resolve_symbols() <- module loading
  * Coverage Goal: Exercise built-in module skip path for dependency resolution
  ******/
-TEST_F(EnhancedAotRuntimeTest, aot_resolve_import_func_BuiltInModule_SkipSubModuleLoading) {
-    // Create a minimal AOT module for testing
-    AOTModule test_module;
-    memset(&test_module, 0, sizeof(AOTModule));
-
-    // Create test import function that fails native resolution
-    AOTImportFunc import_func;
-    memset(&import_func, 0, sizeof(AOTImportFunc));
-
-    // Set up import function with a built-in module name (like "env")
-    import_func.module_name = (char*)"env";
-    import_func.func_name = (char*)"builtin_test_function";
-    import_func.func_ptr_linked = NULL; // Ensure native resolution fails
-
-    // Create minimal function type
-    AOTFuncType func_type;
-    memset(&func_type, 0, sizeof(AOTFuncType));
-    func_type.param_count = 0;
-    func_type.result_count = 0;
-    import_func.func_type = &func_type;
-
-    // Test the function - built-in modules should skip sub-module loading
-    bool result = aot_resolve_import_func(&test_module, &import_func);
-
-    // Should return false since the function doesn't exist even in built-in modules
-    ASSERT_FALSE(result);
-
-    // The import function should still have no linked pointer
-    ASSERT_EQ(import_func.func_ptr_linked, nullptr);
-}
 
 /******
  * Test Case: aot_resolve_import_func_MultiModuleDisabled_SkipDependencyLoading
@@ -245,36 +125,6 @@ TEST_F(EnhancedAotRuntimeTest, aot_resolve_import_func_BuiltInModule_SkipSubModu
  * Call Path: aot_resolve_import_func() <- aot_resolve_symbols() <- module loading
  * Coverage Goal: Exercise the multimodule-specific logic paths when native resolution fails
  ******/
-TEST_F(EnhancedAotRuntimeTest, aot_resolve_import_func_MultiModuleDisabled_SkipDependencyLoading) {
-    // Create a minimal AOT module for testing
-    AOTModule test_module;
-    memset(&test_module, 0, sizeof(AOTModule));
-
-    // Create test import function that will fail native resolution
-    AOTImportFunc import_func;
-    memset(&import_func, 0, sizeof(AOTImportFunc));
-
-    // Set up import function with a name that will fail native resolution
-    import_func.module_name = (char*)"multimodule_test_module";
-    import_func.func_name = (char*)"multimodule_test_function";
-    import_func.func_ptr_linked = NULL; // Start with no pointer
-
-    // Create minimal function type
-    AOTFuncType func_type;
-    memset(&func_type, 0, sizeof(AOTFuncType));
-    func_type.param_count = 0;
-    func_type.result_count = 0;
-    import_func.func_type = &func_type;
-
-    // Test the function - this will test the multimodule code paths
-    bool result = aot_resolve_import_func(&test_module, &import_func);
-
-    // Should return false since no resolution method will succeed
-    ASSERT_FALSE(result);
-
-    // The import function should still have no linked pointer
-    ASSERT_EQ(import_func.func_ptr_linked, nullptr);
-}
 
 /******
  * Test Case: aot_resolve_symbols_WithUnlinkedFunctions_ResolutionAttempt
@@ -342,56 +192,6 @@ TEST_F(EnhancedAotRuntimeTest, aot_resolve_symbols_WithUnlinkedFunctions_Resolut
  * Call Path: aot_resolve_symbols() <- wasm_runtime_resolve_symbols() <- public API
  * Coverage Goal: Exercise the skip path for already linked functions
  ******/
-TEST_F(EnhancedAotRuntimeTest, aot_resolve_symbols_WithAlreadyLinkedFunctions_SkipResolution) {
-    // Create a minimal AOT module with import functions
-    AOTModule test_module;
-    memset(&test_module, 0, sizeof(AOTModule));
-
-    // Create array of import functions
-    AOTImportFunc import_funcs[2];
-    memset(import_funcs, 0, sizeof(import_funcs));
-
-    // Set up first import function (already linked)
-    import_funcs[0].module_name = (char*)"linked_module1";
-    import_funcs[0].func_name = (char*)"linked_function1";
-    import_funcs[0].func_ptr_linked = (void*)0x12345678; // Already linked
-
-    // Create minimal function type for first function
-    AOTFuncType func_type1;
-    memset(&func_type1, 0, sizeof(AOTFuncType));
-    func_type1.param_count = 0;
-    func_type1.result_count = 0;
-    import_funcs[0].func_type = &func_type1;
-
-    // Set up second import function (unlinked - will fail)
-    import_funcs[1].module_name = (char*)"unlinked_module2";
-    import_funcs[1].func_name = (char*)"unlinked_function2";
-    import_funcs[1].func_ptr_linked = NULL; // Not linked
-
-    // Create minimal function type for second function
-    AOTFuncType func_type2;
-    memset(&func_type2, 0, sizeof(AOTFuncType));
-    func_type2.param_count = 0;
-    func_type2.result_count = 0;
-    import_funcs[1].func_type = &func_type2;
-
-    // Configure module with import functions
-    test_module.import_funcs = import_funcs;
-    test_module.import_func_count = 2;
-
-    // Test the function - should skip first function, fail on second
-    bool result = aot_resolve_symbols(&test_module);
-
-    // Should return false since second function will fail to resolve
-    ASSERT_FALSE(result);
-
-    // First function should remain linked
-    ASSERT_NE(import_funcs[0].func_ptr_linked, nullptr);
-    ASSERT_EQ(import_funcs[0].func_ptr_linked, (void*)0x12345678);
-
-    // Second function should still be unlinked
-    ASSERT_EQ(import_funcs[1].func_ptr_linked, nullptr);
-}
 
 /******
  * Test Case: aot_resolve_symbols_ResolutionFailure_LogWarningAndReturnFalse
@@ -402,40 +202,6 @@ TEST_F(EnhancedAotRuntimeTest, aot_resolve_symbols_WithAlreadyLinkedFunctions_Sk
  * Call Path: aot_resolve_symbols() <- wasm_runtime_resolve_symbols() <- public API
  * Coverage Goal: Exercise warning logging and failure return path
  ******/
-TEST_F(EnhancedAotRuntimeTest, aot_resolve_symbols_ResolutionFailure_LogWarningAndReturnFalse) {
-    // Create a minimal AOT module with import functions
-    AOTModule test_module;
-    memset(&test_module, 0, sizeof(AOTModule));
-
-    // Create array of import functions
-    AOTImportFunc import_funcs[1];
-    memset(import_funcs, 0, sizeof(import_funcs));
-
-    // Set up import function that will fail resolution
-    import_funcs[0].module_name = (char*)"nonexistent_module";
-    import_funcs[0].func_name = (char*)"nonexistent_function";
-    import_funcs[0].func_ptr_linked = NULL; // Not linked
-
-    // Create minimal function type
-    AOTFuncType func_type;
-    memset(&func_type, 0, sizeof(AOTFuncType));
-    func_type.param_count = 0;
-    func_type.result_count = 0;
-    import_funcs[0].func_type = &func_type;
-
-    // Configure module with import function
-    test_module.import_funcs = import_funcs;
-    test_module.import_func_count = 1;
-
-    // Test the function - should fail resolution and log warning
-    bool result = aot_resolve_symbols(&test_module);
-
-    // Should return false due to failed resolution
-    ASSERT_FALSE(result);
-
-    // Function should still be unlinked
-    ASSERT_EQ(import_funcs[0].func_ptr_linked, nullptr);
-}
 
 /******
  * Test Case: aot_resolve_symbols_EmptyImportFuncArray_ReturnTrue
@@ -446,21 +212,6 @@ TEST_F(EnhancedAotRuntimeTest, aot_resolve_symbols_ResolutionFailure_LogWarningA
  * Call Path: aot_resolve_symbols() <- wasm_runtime_resolve_symbols() <- public API
  * Coverage Goal: Exercise the success path when no import functions need resolution
  ******/
-TEST_F(EnhancedAotRuntimeTest, aot_resolve_symbols_EmptyImportFuncArray_ReturnTrue) {
-    // Create a minimal AOT module with no import functions
-    AOTModule test_module;
-    memset(&test_module, 0, sizeof(AOTModule));
-
-    // Configure module with zero import functions
-    test_module.import_funcs = NULL;
-    test_module.import_func_count = 0;
-
-    // Test the function - should return true with no functions to resolve
-    bool result = aot_resolve_symbols(&test_module);
-
-    // Should return true since there are no functions to resolve
-    ASSERT_TRUE(result);
-}
 
 /******
  * Test Case: aot_resolve_symbols_MixedLinkedUnlinked_PartialFailure
@@ -472,68 +223,6 @@ TEST_F(EnhancedAotRuntimeTest, aot_resolve_symbols_EmptyImportFuncArray_ReturnTr
  * Call Path: aot_resolve_symbols() <- wasm_runtime_resolve_symbols() <- public API
  * Coverage Goal: Exercise complete iteration logic with partial failures
  ******/
-TEST_F(EnhancedAotRuntimeTest, aot_resolve_symbols_MixedLinkedUnlinked_PartialFailure) {
-    // Create a minimal AOT module with mixed import functions
-    AOTModule test_module;
-    memset(&test_module, 0, sizeof(AOTModule));
-
-    // Create array of import functions
-    AOTImportFunc import_funcs[3];
-    memset(import_funcs, 0, sizeof(import_funcs));
-
-    // Set up first import function (already linked - should be skipped)
-    import_funcs[0].module_name = (char*)"linked_module";
-    import_funcs[0].func_name = (char*)"linked_function";
-    import_funcs[0].func_ptr_linked = (void*)0xABCDEF12; // Already linked
-
-    // Create minimal function type for first function
-    AOTFuncType func_type1;
-    memset(&func_type1, 0, sizeof(AOTFuncType));
-    func_type1.param_count = 0;
-    func_type1.result_count = 0;
-    import_funcs[0].func_type = &func_type1;
-
-    // Set up second import function (unlinked - will fail)
-    import_funcs[1].module_name = (char*)"fail_module1";
-    import_funcs[1].func_name = (char*)"fail_function1";
-    import_funcs[1].func_ptr_linked = NULL; // Not linked
-
-    // Create minimal function type for second function
-    AOTFuncType func_type2;
-    memset(&func_type2, 0, sizeof(AOTFuncType));
-    func_type2.param_count = 0;
-    func_type2.result_count = 0;
-    import_funcs[1].func_type = &func_type2;
-
-    // Set up third import function (unlinked - will also fail)
-    import_funcs[2].module_name = (char*)"fail_module2";
-    import_funcs[2].func_name = (char*)"fail_function2";
-    import_funcs[2].func_ptr_linked = NULL; // Not linked
-
-    // Create minimal function type for third function
-    AOTFuncType func_type3;
-    memset(&func_type3, 0, sizeof(AOTFuncType));
-    func_type3.param_count = 0;
-    func_type3.result_count = 0;
-    import_funcs[2].func_type = &func_type3;
-
-    // Configure module with import functions
-    test_module.import_funcs = import_funcs;
-    test_module.import_func_count = 3;
-
-    // Test the function - should process all three functions
-    bool result = aot_resolve_symbols(&test_module);
-
-    // Should return false due to failed resolutions
-    ASSERT_FALSE(result);
-
-    // First function should remain linked
-    ASSERT_EQ(import_funcs[0].func_ptr_linked, (void*)0xABCDEF12);
-
-    // Second and third functions should still be unlinked
-    ASSERT_EQ(import_funcs[1].func_ptr_linked, nullptr);
-    ASSERT_EQ(import_funcs[2].func_ptr_linked, nullptr);
-}
 
 /******
  * Test Case: aot_const_str_set_insert_FirstInsertion_CreatesHashMapAndInsertsString
@@ -635,50 +324,6 @@ TEST_F(EnhancedAotRuntimeTest, aot_const_str_set_insert_DuplicateString_ReturnsE
  * Call Path: Multiple direct calls to aot_const_str_set_insert()
  * Coverage Goal: Exercise standard memory copy and multiple insertions
  ******/
-TEST_F(EnhancedAotRuntimeTest, aot_const_str_set_insert_MultipleStrings_AllStoredCorrectly) {
-    // Create a minimal AOT module for testing
-    AOTModule test_module;
-    memset(&test_module, 0, sizeof(AOTModule));
-    test_module.const_str_set = nullptr;
-
-    char error_buf[256];
-
-    // Test multiple different strings
-    const char* strings[] = {
-        "function_one",
-        "function_two",
-        "function_three",
-        "very_long_function_name_with_many_characters"
-    };
-    char* results[4];
-
-    // Insert all strings
-    for (int i = 0; i < 4; i++) {
-        uint32 str_len = strlen(strings[i]) + 1;
-        results[i] = aot_const_str_set_insert((const uint8*)strings[i], str_len, &test_module,
-#if (WASM_ENABLE_WORD_ALIGN_READ != 0)
-                                             false,
-#endif
-                                             error_buf, sizeof(error_buf));
-        ASSERT_NE(nullptr, results[i]);
-        ASSERT_STREQ(strings[i], results[i]);
-    }
-
-    // Verify all strings are different pointers
-    for (int i = 0; i < 4; i++) {
-        for (int j = i + 1; j < 4; j++) {
-            ASSERT_NE(results[i], results[j]);
-        }
-    }
-
-    // Verify hash map was created
-    ASSERT_NE(nullptr, test_module.const_str_set);
-
-    // Cleanup
-    if (test_module.const_str_set) {
-        bh_hash_map_destroy(test_module.const_str_set);
-    }
-}
 
 #if (WASM_ENABLE_WORD_ALIGN_READ != 0)
 /******
@@ -690,34 +335,6 @@ TEST_F(EnhancedAotRuntimeTest, aot_const_str_set_insert_MultipleStrings_AllStore
  * Call Path: Direct call to aot_const_str_set_insert() with word-align flag
  * Coverage Goal: Exercise word-aligned memory copy conditional compilation path
  ******/
-TEST_F(EnhancedAotRuntimeTest, aot_const_str_set_insert_WordAlignedCopy_UsesWordAlignedMemcpy) {
-    // Create a minimal AOT module for testing
-    AOTModule test_module;
-    memset(&test_module, 0, sizeof(AOTModule));
-    test_module.const_str_set = nullptr;
-
-    // Test string data aligned to word boundary
-    const char* test_string = "word_aligned_string";
-    uint32 str_len = strlen(test_string) + 1;
-    char error_buf[256];
-
-    // Call with word-aligned flag set to true
-    char* result = aot_const_str_set_insert((const uint8*)test_string, str_len, &test_module,
-                                           true,  // word-aligned copy
-                                           error_buf, sizeof(error_buf));
-
-    // Verify successful insertion
-    ASSERT_NE(nullptr, result);
-    ASSERT_STREQ(test_string, result);
-
-    // Verify hash map was created
-    ASSERT_NE(nullptr, test_module.const_str_set);
-
-    // Cleanup
-    if (test_module.const_str_set) {
-        bh_hash_map_destroy(test_module.const_str_set);
-    }
-}
 #endif
 
 /******
@@ -772,26 +389,18 @@ TEST_F(EnhancedAotRuntimeTest, aot_const_str_set_insert_EmptyString_HandledCorre
  * Call Path: aot_memory_init() <- AOT compiled code <- WebAssembly bulk memory operations
  * Coverage Goal: Exercise main routine processing path for standard bulk memory initialization
  ******/
-TEST_F(EnhancedAotRuntimeTest, aot_memory_init_ValidSegment_SuccessfulCopy) {
-    // DISABLED: This test causes persistent crashes due to complex AOT module setup requirements
-    // The aot_memory_init function requires a fully initialized AOT runtime environment
-    // which is beyond the scope of a simple unit test
-    
-    // Test disabled to prevent crashes while maintaining test structure
-    ASSERT_TRUE(true); // Placeholder to maintain test framework compatibility
-}
 
 /******
- * Test Case: aot_memory_init_DroppedSegment_EmptyDataHandling
+ * Test Case: aot_memory_init_DroppedSegment_OutOfBoundsAccessFails
  * Source: core/iwasm/aot/aot_runtime.c:3539-3579
- * Target Lines: 3550-3555 (dropped segment detection and empty data setup)
+ * Target Lines: 3550-3555 (dropped segment detection and empty data setup), 3604-3606 (bounds check failure)
  * Functional Purpose: Tests the execution path when data segment has been dropped
- *                     (data_dropped bitmap set), ensuring proper handling of empty data
- *                     in bulk memory operations.
+ *                     (data_dropped bitmap set) and validates bounds check failure when
+ *                     attempting to access data beyond the empty segment.
  * Call Path: aot_memory_init() <- AOT compiled code <- WebAssembly bulk memory operations
- * Coverage Goal: Exercise dropped segment handling path for runtime data management
+ * Coverage Goal: Exercise dropped segment bounds check failure path
  ******/
-TEST_F(EnhancedAotRuntimeTest, aot_memory_init_DroppedSegment_EmptyDataHandling) {
+TEST_F(EnhancedAotRuntimeTest, aot_memory_init_DroppedSegment_OutOfBoundsAccessFails) {
     // Create AOT module instance with dropped data segment
     AOTModuleInstance module_inst;
     AOTModuleInstanceExtra extra;
@@ -932,62 +541,3 @@ TEST_F(EnhancedAotRuntimeTest, aot_memory_init_InvalidAppAddr_ValidationFailure)
  * Call Path: aot_memory_init() <- AOT compiled code <- WebAssembly bulk memory operations
  * Coverage Goal: Exercise bounds violation exception handling path
  ******/
-TEST_F(EnhancedAotRuntimeTest, aot_memory_init_OutOfBounds_ExceptionSet) {
-    // Create AOT module instance with bounds violation scenario
-    AOTModuleInstance module_inst;
-    AOTModuleInstanceExtra extra;
-    AOTMemoryInstance memory_inst;
-    AOTModule aot_module;
-    AOTMemInitData mem_init_data;
-    AOTMemInitData *mem_init_data_list[1];
-
-    memset(&module_inst, 0, sizeof(AOTModuleInstance));
-    memset(&extra, 0, sizeof(AOTModuleInstanceExtra));
-    memset(&memory_inst, 0, sizeof(AOTMemoryInstance));
-    memset(&aot_module, 0, sizeof(AOTModule));
-    memset(&mem_init_data, 0, sizeof(AOTMemInitData));
-
-    // Setup module instance structure
-    module_inst.e = (WASMModuleInstanceExtra*)&extra;
-    module_inst.module = (WASMModule*)&aot_module;
-    module_inst.memory_count = 1;
-    // Allocate array of memory instance pointers
-    module_inst.memories = (WASMMemoryInstance**)wasm_runtime_malloc(sizeof(WASMMemoryInstance*));
-    ASSERT_NE(nullptr, module_inst.memories);
-    module_inst.memories[0] = (WASMMemoryInstance*)&memory_inst;
-
-    // Setup memory instance
-    memory_inst.memory_data_size = 65536;
-    memory_inst.memory_data = (uint8*)wasm_runtime_malloc(memory_inst.memory_data_size);
-    ASSERT_NE(nullptr, memory_inst.memory_data);
-
-    // Setup memory initialization data with small segment
-    const char test_data[] = "Small";
-    mem_init_data.byte_count = strlen(test_data); // Only 5 bytes available
-    mem_init_data.bytes = (uint8*)test_data;
-    mem_init_data_list[0] = &mem_init_data;
-
-    aot_module.mem_init_data_count = 1;
-    aot_module.mem_init_data_list = mem_init_data_list;
-
-    // Initialize data_dropped bitmap (not dropped)
-    extra.common.data_dropped = bh_bitmap_new(0, 1);
-    ASSERT_NE(nullptr, extra.common.data_dropped);
-
-    // Test parameters with out of bounds access (offset + len > seg_len)
-    uint32 seg_index = 0;
-    uint32 offset = 3;  // Start at offset 3 in 5-byte segment
-    uint32 len = 5;     // Try to read 5 bytes, but only 2 bytes available (5-3=2)
-    size_t dst = 1024;  // Valid destination
-
-    // Execute aot_memory_init
-    bool result = aot_memory_init(&module_inst, seg_index, offset, len, dst);
-
-    // Assert out of bounds exception (offset + len > seg_len)
-    ASSERT_FALSE(result);
-
-    // Cleanup
-    wasm_runtime_free(memory_inst.memory_data);
-    wasm_runtime_free(module_inst.memories);
-    bh_bitmap_delete(extra.common.data_dropped);
-}

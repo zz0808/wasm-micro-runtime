@@ -60,10 +60,17 @@ model_name: main
 
 ## Phase 2: New Test Cases
 
-| Test Case | Target Function | Path Type | Result |
-|-----------|-----------------|-----------|--------|
-| `new_test_1` | `func_a` | SUCCESS | ✅ ADDED |
-| `new_test_2` | `func_b` | FAILURE | ⏭️ SKIPPED (no coverage) |
+### Exploration Summary
+- Searched for patterns: [brief description of what patterns were found]
+- Referenced tests: [list of similar tests that were examined]
+
+| Test Case | Target Function | Path Type | Result | Reason/Coverage |
+|-----------|-----------------|-----------|--------|-----------------|
+| `new_test_1` | `func_a` | SUCCESS | ✅ ADDED | +12 lines |
+| `new_test_2` | `func_b` | FAILURE | ⏭️ SKIPPED | 0 new lines after build |
+| `new_test_3` | `func_c` | EDGE | ⏭️ SKIPPED | Build error: undefined reference to func_c_internal |
+
+**Note**: NEVER write "No new test cases added" without attempting each suggestion individually.
 
 ---
 
@@ -163,11 +170,15 @@ If `*_verify.md` is not provided, locate it automatically in the same directory 
                                    ▼
 ┌─────────────────────────────────────────────────────────────────────┐
 │  PHASE 2: GENERATE NEW TEST CASES (from Enhancement Recommendations)│
+│  ⚠️ MANDATORY: Attempt EVERY suggestion, no batch skipping          │
 │  - For each suggested test case:                                    │
-│    - Generate test code, append to file                             │
-│    - Rebuild and check: python3 is_test_case_useful.py              │
-│    - If NOT useful: REMOVE and mark as SKIPPED                      │
-│  - Record all results in output document                            │
+│    - Step 1: Explore patterns (Grep similar tests, Read examples)   │
+│    - Step 2: Generate test code following discovered patterns       │
+│    - Step 3: Append to file and rebuild                             │
+│    - Step 4: Verify: python3 is_test_case_useful.py                 │
+│    - Step 5: Accept (if coverage+) or SKIP (with specific reason)   │
+│  - Document exploration summary and per-test results                │
+│  - FORBIDDEN: Skipping all tests with "too complex" excuse          │
 └─────────────────────────────────────────────────────────────────────┘
                                    │
                                    ▼
@@ -306,17 +317,88 @@ For each test with `Alignment: NO` in review:
 
 ### PHASE 2: Generate New Test Cases
 
-For each suggested test in "Enhancement Recommendations":
+**⚠️ MANDATORY BEHAVIOR - NO BATCH SKIPPING ALLOWED**
 
-1. **Generate** test code following existing patterns
+You MUST attempt to generate EVERY suggested test case from review. NEVER skip entire Phase 2 with generic excuses.
+
+**Required workflow for EACH suggested test:**
+
+**Step 1: Pattern Exploration (MANDATORY)**
+- Use Grep to search for similar test patterns in the same test file
+- Use Grep to search for similar test patterns in other test files in the module
+- Read at least 2 similar existing tests to understand the setup pattern
+- Document the pattern found (e.g., "Found AOTModule setup pattern in enhanced_aot_runtime_test.cc:47-60")
+
+**Step 2: Code Generation**
+- Generate test code following the patterns discovered in Step 1
+- Reuse existing helper structures, fixtures, and utility functions
+- If the suggested test requires data (e.g., AOT module bytes):
+  - Search for existing data files: `find . -name "*.aot" -o -name "*_aot.h"`
+  - Check if other tests in the file use embedded byte arrays or external files
+  - Reuse existing test data when possible
+
+**Step 3: Implementation**
+1. **Generate** test code following discovered patterns
 2. **Append** to test file
 3. **Rebuild**: `cmake --build build/smart-tests/<MODULE_NAME> 2>&1 | tail -10`
 4. **Verify**: `python3 is_test_case_useful.py <TEST_FILE> <NEW_TEST_CASE>`
-5. **Accept/Reject**:
-   - Coverage improved (new lines > 0) AND overall gate not dropped → ✅ ADDED
-   - No coverage contribution → ⏭️ SKIPPED (delete test case)
 
-**Record each new test in output document's Phase 2 table.**
+**Step 4: Accept/Reject Decision**
+- Coverage improved (new lines > 0) AND overall gate not dropped → ✅ ADDED
+- No coverage contribution after implementation → ⏭️ SKIPPED (delete test case)
+- Build fails with technical blocker → ⏭️ SKIPPED (document specific error)
+
+**Step 5: Documentation**
+Record each new test in output document's Phase 2 table with:
+- Test name
+- Result (✅ ADDED / ⏭️ SKIPPED)
+- If SKIPPED: specific technical reason (see valid reasons below)
+
+---
+
+**VALID Skip Reasons (specific technical blockers only):**
+
+✅ **Acceptable SKIP reasons:**
+- "Requires mocking runtime_malloc, no mock framework configured in CMakeLists.txt"
+- "Build fails: undefined reference to aot_internal_function (not exported)"
+- "Coverage verification shows 0 new lines covered after successful build"
+- "Requires external .aot file not present in wasm-apps directory"
+- "Function signature not found in any header file (grep returned no results)"
+
+❌ **INVALID Skip Reasons (too vague, not allowed):**
+- "Too complex" → Must specify WHAT is complex
+- "Requires AOT module setup" → Must ATTEMPT using existing patterns first
+- "Beyond simple fixes" → Phase 2 is ABOUT adding new code
+- "Need more investigation" → You must investigate NOW, not skip
+- Skipping entire Phase 2 without trying individual tests → FORBIDDEN
+
+---
+
+**Example Phase 2 output (GOOD):**
+
+```markdown
+## Phase 2: New Test Cases
+
+### Exploration Summary
+- Searched for AOTModule setup patterns: Found in enhanced_aot_runtime_test.cc:47-48
+- Searched for AOT test data: Found test_aot.h in ../aot-stack-frame/wasm-apps/
+- Read similar test: enhanced_aot_runtime_test.cc:45-80 (shows AOTModule initialization)
+
+| Test Case | Target Function | Action Taken | Result | Reason |
+|-----------|-----------------|--------------|--------|--------|
+| `aot_get_global_addr_InvalidGlobalIndex` | `aot_get_global_addr` | Generated, built, verified | ✅ ADDED | +15 lines coverage |
+| `aot_set_aux_stack_ValidStackSize` | `aot_set_aux_stack` | Generated, built, verified | ⏭️ SKIPPED | 0 new lines (function already fully covered) |
+| `malloc_failure_linear_search` | `aot_lookup_function` | Generated, build failed | ⏭️ SKIPPED | Requires mocking runtime_malloc (no mock framework) |
+```
+
+---
+
+**Enforcement Rules:**
+
+1. ❌ You CANNOT skip all suggested tests with a single excuse
+2. ✅ You MUST attempt pattern exploration for each suggestion
+3. ✅ You MUST document specific technical blockers for skipped tests
+4. ✅ You MUST try at least 80% of suggested tests (unless valid technical blockers exist)
 
 ### PHASE 3: Final Report
 
@@ -341,13 +423,19 @@ python3 get_current_coverage.py <TEST_FILE_PATH>
 6. Record final coverage AFTER modifications
 7. Use CONCISE output format (tables, not paragraphs)
 8. Enforce overall coverage gate: Final MUST be >= Initial
+9. **PHASE 2 MANDATORY: Explore patterns BEFORE claiming "too complex"**
+10. **PHASE 2 MANDATORY: Attempt EVERY suggested test individually**
+11. **PHASE 2 MANDATORY: Document specific technical blocker for each skip**
 
 ### ❌ MUST NOT DO
 1. Skip coverage verification
 2. Keep modifications that reduce coverage
 3. Keep new tests that don't add coverage
 4. Write long paragraphs or code blocks in output
-5. Skip any test case or suggestion from review
+5. Skip any test case or suggestion from review without specific technical reason
+6. **Skip entire Phase 2 with vague excuses like "too complex" or "requires setup"**
+7. **Claim a test is impossible without first exploring existing test patterns**
+8. **Use generic skip reasons - each skip must have specific error messages or technical details**
 
 ## Quick Reference
 
