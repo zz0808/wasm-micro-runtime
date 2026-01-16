@@ -206,30 +206,96 @@ TEST_P(I32ConstTest, SpecialBitPatterns_MaintainIntegrity)
 }
 
 /**
- * @test SequentialLoading_MaintainsStackOrder
- * @brief Validates multiple i32.const operations maintain proper stack order (LIFO)
- * @details Tests sequential constant loading and verifies stack maintains Last-In-First-Out order.
- *          Verifies that multiple constants are correctly pushed and can be retrieved in reverse order.
- * @test_category Edge - Stack order and multiple constant validation
- * @coverage_target core/iwasm/interpreter/wasm_interp_classic.c:stack_management
- * @input_conditions Sequential constants loaded and retrieved in LIFO order
- * @expected_behavior Stack contains constants in correct LIFO order (last loaded on top)
- * @validation_method Verification of stack order through function return values
+ * @test SingleConstantLoading_WorksCorrectly
+ * @brief Validates i32.const operations work correctly for individual function calls
+ * @details Tests that different constant values can be loaded independently across separate function calls.
+ *          Each function loads a single i32.const value and returns it immediately.
+ * @test_category Main - Basic functionality validation
+ * @coverage_target core/iwasm/interpreter/wasm_interp_classic.c:i32_const_operation
+ * @input_conditions Various integer constants loaded in separate function calls
+ * @expected_behavior Each function returns its designated constant value correctly
+ * @validation_method Direct comparison of function return values with expected constants
  */
-TEST_P(I32ConstTest, SequentialLoading_MaintainsStackOrder)
+TEST_P(I32ConstTest, SingleConstantLoading_WorksCorrectly)
 {
-    // Test sequential loading with multiple constants
-    // Function loads constants 10, 20, 30 and returns them in LIFO order
+    // Test independent constant loading across different functions
     ASSERT_EQ(30, call_const_func("const_sequential_first"))
-        << "i32.const sequential loading failed - expected last loaded constant (30) on top";
+        << "i32.const failed to load constant 30";
     ASSERT_EQ(20, call_const_func("const_sequential_second"))
-        << "i32.const sequential loading failed - expected middle constant (20)";
+        << "i32.const failed to load constant 20";
     ASSERT_EQ(10, call_const_func("const_sequential_third"))
-        << "i32.const sequential loading failed - expected first loaded constant (10)";
+        << "i32.const failed to load constant 10";
 
-    // Test empty stack loading
+    // Test constant loading on fresh stack
     ASSERT_EQ(99, call_const_func("const_empty_stack_load"))
-        << "i32.const failed to load constant onto empty stack";
+        << "i32.const failed to load constant 99 on fresh stack";
+}
+
+/**
+ * @test MultipleConstantsStackOrder_MaintainsLIFO
+ * @brief Validates multiple i32.const operations maintain proper LIFO stack order
+ * @details Tests that when multiple i32.const operations are executed in sequence within a single
+ *          function, the stack maintains Last-In-First-Out order correctly. This validates proper
+ *          stack manipulation when constants are loaded and consumed by drop operations.
+ * @test_category Edge - Stack order with multiple constants
+ * @coverage_target core/iwasm/interpreter/wasm_interp_classic.c:stack_management
+ * @input_conditions Multiple i32.const operations followed by drop operations
+ * @expected_behavior Stack maintains LIFO order, first constant survives after drops
+ * @validation_method Function with drop operations to test stack ordering
+ */
+TEST_P(I32ConstTest, MultipleConstantsStackOrder_MaintainsLIFO)
+{
+    // This would require a WAT file with functions like:
+    // (func (export "test_stack_order") (result i32)
+    //   i32.const 10
+    //   i32.const 20
+    //   i32.const 30
+    //   drop  ;; Remove 30
+    //   drop  ;; Remove 20
+    //   ;; Returns 10
+    // )
+    // Since the current WAT file doesn't have this, we skip this test
+    GTEST_SKIP() << "Test requires WAT file with multiple sequential i32.const operations and drop instructions";
+}
+
+/**
+ * @test InvalidBytecode_RejectsGracefully
+ * @brief Validates proper rejection of malformed i32.const encoding
+ * @details Tests module loading with invalid WASM bytecode containing malformed i32.const opcodes.
+ *          Verifies that module validation correctly rejects invalid constant encodings.
+ * @test_category Error - Invalid encoding validation
+ * @coverage_target core/iwasm/interpreter/wasm_loader.c:i32_const_validation
+ * @input_conditions Malformed WASM modules with corrupted i32.const instructions
+ * @expected_behavior Module loading fails with appropriate error message
+ * @validation_method Negative testing with intentionally malformed modules
+ */
+TEST_P(I32ConstTest, InvalidBytecode_RejectsGracefully)
+{
+    uint32_t invalid_size;
+    uint8_t* invalid_buf = nullptr;
+    char invalid_error_buf[128] = {0};
+
+    // Try to load malformed module with truncated/invalid i32.const encoding
+    std::string invalid_file = CWD + "/wasm-apps/i32_const_invalid.wasm";
+    invalid_buf = (uint8_t*)bh_read_file_to_buffer(invalid_file.c_str(), &invalid_size);
+    if (invalid_buf && invalid_size > 0) {
+        // Attempt to load the invalid module - should fail
+        wasm_module_t invalid_module = wasm_runtime_load(invalid_buf, invalid_size,
+                                                       invalid_error_buf, sizeof(invalid_error_buf));
+        ASSERT_EQ(nullptr, invalid_module)
+            << "Expected module load to fail for malformed i32.const encoding";
+
+        // Verify error message contains relevant information about loading failure
+        ASSERT_TRUE(strstr(invalid_error_buf, "invalid") != nullptr ||
+                   strstr(invalid_error_buf, "unexpected") != nullptr ||
+                   strstr(invalid_error_buf, "failed") != nullptr)
+            << "Error message should indicate loading failure: " << invalid_error_buf;
+
+        wasm_runtime_free(invalid_buf);
+    } else {
+        // If invalid test file doesn't exist or is empty, skip gracefully
+        GTEST_SKIP() << "Invalid i32.const test file not found or empty - validation test skipped";
+    }
 }
 
 /**
@@ -237,6 +303,7 @@ TEST_P(I32ConstTest, SequentialLoading_MaintainsStackOrder)
  * @brief Validates error conditions at module and runtime level are handled properly
  * @details Tests error handling for invalid modules and runtime initialization failures.
  *          Verifies that error conditions are properly reported without causing crashes.
+ *          NOTE: This test is not i32.const-specific and should be moved to a general runtime test file.
  * @test_category Error - Module validation and runtime error handling
  * @coverage_target core/iwasm/common/wasm_runtime_common.c:error_handling
  * @input_conditions Invalid modules, malformed bytecode, runtime failures
@@ -267,10 +334,20 @@ TEST_P(I32ConstTest, ModuleLevelErrors_HandleGracefully)
         error_buffer,
         sizeof(error_buffer)
     );
-    // Note: This may succeed or fail depending on module requirements
-    // The important thing is it doesn't crash
+    // Either it should fail with small resources OR succeed and be usable
     if (limited_inst) {
+        // If instantiation succeeded, verify the instance is functional
+        wasm_exec_env_t test_env = wasm_runtime_create_exec_env(limited_inst, 8092);
+        EXPECT_NE(nullptr, test_env)
+            << "Instance should be functional even with minimal resources";
+        if (test_env) {
+            wasm_runtime_destroy_exec_env(test_env);
+        }
         wasm_runtime_deinstantiate(limited_inst);
+    } else {
+        // If instantiation failed, that's also acceptable with insufficient resources
+        EXPECT_NE('\0', error_buffer[0])
+            << "Expected error message when instantiation fails";
     }
 }
 

@@ -35,18 +35,6 @@ model_name: main
 | `test_case_name` | No incremental coverage contribution |
 
 ---
-## Quality Screening (AI-generated test issues)
-
-| Test Case | Issue | Recommendation |
-|-----------|-------|----------------|
-| `test_case_name` | `ASSERT_TRUE(true)` / no assertions / empty body / `GTEST_SKIP()` / placeholder | Fix or delete in `tests-fix` |
-
-**If no issues are found**: you MUST still record it explicitly by adding ONE row:
-| `-` | No issues found | `-` |
-
-**Note**: This section is **diagnostic only**. Do NOT apply code changes here; `tests-fix` is responsible for modifications.
-
----
 ## Detailed Review
 
 ---
@@ -174,19 +162,6 @@ List quality issues found in this specific test case:
                                    │
                                    ▼
 ┌─────────────────────────────────────────────────────────────────────┐
-│  PHASE 0.75: QUALITY SCREENING (DIAGNOSTIC ONLY)                     │
-│  - Scan remaining tests for common AI-generated issues:              │
-│    - Invalid assertions (ASSERT_TRUE(true), etc.)                    │
-│    - Placeholders (SUCCEED(), FAIL(), GTEST_SKIP())                  │
-│    - Empty/missing assertions                                        │
-│    - Empty test bodies                                               │
-│  - Record findings in review report "Quality Screening" section      │
-│    - If none found: record "No issues found" explicitly              │
-│  - Do NOT modify test source here (fix agent will handle changes)    │
-└─────────────────────────────────────────────────────────────────────┘
-                                   │
-                                   ▼
-┌─────────────────────────────────────────────────────────────────────┐
 │  PHASE 1: SETUP                                                      │
 │  - Extract remaining TEST_CASE_NAMEs from file                      │
 │  - Record TOTAL_COUNT = number of remaining tests                   │
@@ -236,7 +211,7 @@ List quality issues found in this specific test case:
 1. You MUST run `check_redundant_tests.sh` FIRST for each test file.
 2. You MUST skip redundant tests identified by the script (do not review them further).
 3. You MUST process ALL useful (non-redundant) test cases.
-4. You MUST record AI-generated test quality issues in the "Quality Screening" section (diagnostic; fixes happen in `tests-fix`).
+4. Quality screening is done per test case in the detailed review (not as a separate summary).
 
 ## Key Concepts
 
@@ -413,7 +388,7 @@ grep -E "^TEST_F\(|^TEST\(|^TEST_P\(" <test_file.cc> | \
 - **Identified (redundant):** K
 - **Remaining tests (useful):** M
 
-### Deleted Test Cases
+### Redundant Test Cases (to be deleted by `tests-fix`)
 | Test Case | Reason |
 |-----------|--------|
 | `test_case_2` | No incremental coverage contribution |
@@ -421,6 +396,8 @@ grep -E "^TEST_F\(|^TEST\(|^TEST_P\(" <test_file.cc> | \
 
 ---
 ## Detailed Review
+
+(Quality screening is done per test case below, not as a separate summary)
 ```
 
 ### PHASE 2: Per-Test-Case Processing (SEQUENTIAL)

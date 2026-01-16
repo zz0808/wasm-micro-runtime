@@ -314,18 +314,17 @@ TEST_P(F64ConstTest, MultipleConstants_MaintainsStackOrder)
 }
 
 /**
- * @test InvalidModule_FailsLoading
- * @brief Tests module loading failure for malformed f64.const instructions
- * @details Validates that WASM modules with invalid f64.const instructions (truncated immediate,
- *          malformed bytecode) fail to load with appropriate error reporting. Tests WAMR's
- *          module validation and error handling for constant instruction malformation.
+ * @test InvalidModuleMagicNumber_FailsLoading
+ * @brief Tests module loading failure for invalid WASM magic number
+ * @details Validates that WASM modules with invalid magic numbers fail to load with appropriate
+ *          error reporting. Tests WAMR's module validation and buffer underflow detection.
  * @test_category Error - Module validation and error handling
- * @coverage_target core/iwasm/loader/wasm_loader.c:load_const_instructions
- * @input_conditions Malformed WASM module with truncated f64.const immediate data
+ * @coverage_target core/iwasm/loader/wasm_loader.c:check_buf1
+ * @input_conditions Malformed WASM module with invalid magic number (buffer underflow)
  * @expected_behavior Module loading fails with appropriate error reporting, no crashes
  * @validation_method Module loading failure verification with error message validation
  */
-TEST_P(F64ConstTest, InvalidModule_FailsLoading)
+TEST_P(F64ConstTest, InvalidModuleMagicNumber_FailsLoading)
 {
     // Create buffer for invalid module loading test
     uint32_t invalid_buf_size;
